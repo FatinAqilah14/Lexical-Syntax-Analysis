@@ -1,0 +1,256 @@
+
+
+
+# import RegEx, or Regular Expression (a sequence of characters that forms a search pattern) 
+import re
+# import keyword of Python to check whether the code fits to be categorized as keywords or not
+import keyword
+# import the sys module to access system-related functions and variables
+import sys
+
+
+# Lexical Analysis Part ====================
+
+# regular expressions for different token types
+identifier_re = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]*(?![\w\d])')
+integer_literal_re = re.compile(r'\b\d+\b')
+float_literal_re = re.compile(r'\b\d+\.\d*\b')
+string_literal_re = re.compile(r'("(?:\\.[^\"\n]|[^"\n])*")|\'(?:\\.[^\'\n]|[^\'\n])*\'\s*(?!=)|\'("(?:\\.|[^"\n])*"|\'(?:\\.|[^"\n])*\')(?!\w)')
+punctuation_re = re.compile(r'[\[\]\{\}\(\),\'\:\"]')
+add_re = re.compile(r'\+')
+mult_re = re.compile(r'\*')
+assignment_re = re.compile(r'(?<!\=)=') # adjusted to recognize '='
+semicolon_re = re.compile(r';')
+subt_re = re.compile(r'-')
+division_re = re.compile(r'/')
+modulus_re = re.compile(r'%')
+exp_re = re.compile(r'\*\*')
+floorDiv_re = re.compile(r'\/\/')
+comparison_re = re.compile(r'!=|>|<|>=|<=|==|<>')  # adjusted the order to prioritize '==' over '='
+comment_re = re.compile(r'(#.*|"""(?:[^"]|\n)*""")') # ignore comment starts with # and """
+
+# try to match each token type
+def tokenize(source_code):
+    tokens = []
+
+    # skip comments
+    source_code = re.sub(comment_re, '', source_code)
+
+    # identify string literals first
+    for match in string_literal_re.finditer(source_code):
+        string_literal_value = match.group()[1:-1].strip()
+        tokens.append((string_literal_value, 'string_literal'))
+        source_code = source_code[:match.start()] + source_code[match.end():]
+
+    # identify other token types
+    for match in identifier_re.finditer(source_code):
+        identifier = match.group()
+        if keyword.iskeyword(identifier):
+            tokens.append((identifier, 'keyword'))
+        else:
+            # check if the identifier is part of a string literal
+            for string_literal_token in tokens:
+                if string_literal_token[0] == 'string_literal' and identifier.startswith(string_literal_token[1]):
+                    continue  # skip identifiers that are part of string literals
+            tokens.append((identifier, 'identifier'))
+
+    # to find match for punctuation 
+    for match in punctuation_re.finditer(source_code):
+        tokens.append((match.group(), 'punctuation'))
+
+    # to find match for integer
+    for match in integer_literal_re.finditer(source_code):
+        tokens.append((match.group(), 'integer_literal'))
+
+    # to find match for float 
+    for match in float_literal_re.finditer(source_code):
+        tokens.append((match.group(), 'float_literal'))
+
+    # to find match for add operation
+    for match in add_re.finditer(source_code):
+        tokens.append((match.group(), 'add_op'))
+
+    # to find match for multiplication operation
+    for match in mult_re.finditer(source_code):
+        tokens.append((match.group(), 'mult_op'))
+
+    # to find match for subtraction operation
+    for match in subt_re.finditer(source_code):
+        tokens.append((match.group(), 'subtraction_op'))
+
+    # to find match for division operation 
+    for match in division_re.finditer(source_code):
+        tokens.append((match.group(), 'division_op'))
+
+    # to find match for modulus operation
+    for match in modulus_re.finditer(source_code):
+        tokens.append((match.group(), 'modulus_op'))
+
+    # to find match for exponent operation
+    for match in exp_re.finditer(source_code):
+        tokens.append((match.group(), 'exponent_op'))
+
+    # to find match for floor division operation
+    for match in floorDiv_re.finditer(source_code):
+        tokens.append((match.group(), 'floorDivision_op'))
+
+    # to find match for comparison operation
+    for match in comparison_re.finditer(source_code):
+        tokens.append((match.group(), 'comparison_op'))
+
+    # to find match for assignment sign 
+    for match in assignment_re.finditer(source_code):
+        tokens.append((match.group(), 'assignment_sign'))
+
+    # to find match for semicolon
+    for match in semicolon_re.finditer(source_code):
+        tokens.append((match.group(), 'semicolon'))
+
+    return tokens
+
+
+# Syntax Analysis Part ====================
+
+class BinOpNode:
+    def __init__(self, operator, left, right):
+        self.operator = operator
+        self.left = left
+        self.right = right
+
+    
+    def __str__(self):
+        return f"BinOpNode({self.operator}, left={self.left}, right={self.right})"
+
+
+class AssignNode:
+    def __init__(self, identifier, value):
+        self.identifier = identifier
+        self.value = value
+
+class NumNode:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return f"NumNode({self.value})"
+
+class StringNode:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return f"StringNode('{self.value}')"
+
+
+# Retrieve the next token
+def next_token():
+    global current_token
+    if current_token < len(tokens):
+        current_token += 1
+        return tokens[current_token - 1]
+    return None
+
+# Match a specific token type
+def match(token_type):
+    if current_token < len(tokens) and tokens[current_token][1] == token_type:
+        return next_token()
+    return None
+
+class Parser:
+    def parse_program(self):
+        statements = []
+        while current_token < len(tokens):
+            statement = self.parse_statement()
+            if statement:
+                statements.append(statement)
+        return statements
+
+    def parse_statement(self):
+        expression = self.parse_expression()
+        match('semicolon')
+        return expression
+
+    def parse_expression(self):
+        term = self.parse_term()
+        while current_token < len(tokens) and tokens[current_token][1] in ['add_op', 'subtraction_op']:
+            operator = next_token()
+            term = BinOpNode(operator[1], term, self.parse_term())
+        return term
+
+    def parse_term(self):
+        factor = self.parse_factor()
+        while current_token < len(tokens) and tokens[current_token][1] in ['mult_op', 'division_op', 'modulus_op', 'exponent_op', 'floorDivision_op']:
+            operator = next_token()
+            factor = BinOpNode(operator[1], factor, self.parse_factor())
+        return factor
+
+    def parse_factor(self):
+        token = next_token()
+        if token and token[1] == 'identifier':
+            return token[0]
+        elif token and token[1] == 'integer_literal':
+            return NumNode(int(token[0]))
+        elif token and token[1] == 'float_literal':
+            return NumNode(float(token[0]))
+        elif token and token[1] == 'string_literal':
+            return StringNode(token[0])
+        elif token and token[1] == 'punctuation' and token[0] == '(':
+            expression = self.parse_expression()
+            match('punctuation')
+            return expression
+        else:
+            print(f"Syntax error at token: {token}")
+            return None
+        
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.children = []
+
+    def add_child(self, node):
+        self.children.append(node)
+
+def print_tree_with_path(node, path=""):
+    print(f"{path}{node.value}")
+    for index, child in enumerate(node.children):
+        print_tree_with_path(child, f"{path}{'|   ' if index < len(node.children) - 1 else '|   '}")
+
+
+
+
+
+# Main Function ====================
+def main():
+    global current_token
+    source_code = """
+    x = 10
+    y = 5
+    result = x + y * (3 ** 2) / 4
+    """
+
+    print("\n------------------------")
+    print("The token(s) based on the code: ")
+    global tokens
+    tokens = tokenize(source_code)
+    for token in tokens:
+        print(token)
+    print("------------------------")
+
+    current_token = 0
+    parser = Parser()
+    ast = parser.parse_program()
+    print("\nAbstract Syntax Tree (AST):")
+    # for node in ast:
+        # print(node)
+        
+
+    root = Node("Root")  # Create a root node
+    for node in ast:
+        if isinstance(node, (BinOpNode, AssignNode, NumNode, StringNode)):  # Check node types
+            root.add_child(Node(str(node)))  # Add nodes as children to the root
+
+    print_tree_with_path(root)
+
+
+if __name__ == '__main__':
+    main()

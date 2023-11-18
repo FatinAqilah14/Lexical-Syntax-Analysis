@@ -1,0 +1,74 @@
+grammar GrammarExtension;
+
+tokens {
+  ADD;
+  MULT;
+  SUBT;
+  DIVISION;
+  MODULUS;
+  EXP;
+  FLOORDIV;
+  COMPARISON;
+  ASSIGNMENT;
+  SEMICOLON;
+  IDENTIFIER;
+  INTEGER_LITERAL;
+  STRING_LITERAL;
+  PUNCTUATION;
+}
+
+
+// Define the grammar rules for the code
+program: statement+;
+
+statement: assignment_statement
+         | expression_statement
+         | print_statement
+         | // other statement types
+         ;
+
+assignment_statement: IDENTIFIER ASSIGNMENT expression SEMICOLON;
+
+expression_statement: expression SEMICOLON;
+
+print_statement: 'print' expression SEMICOLON;
+
+expression: primary_expression
+          | binary_expression
+          | // other expression types
+          ;
+
+primary_expression: IDENTIFIER
+                  | INTEGER_LITERAL
+                  | STRING_LITERAL
+                  | // other primary expression types
+                  ;
+
+binary_expression: expression ADD expression
+                 | expression MULT expression
+                 | expression SUBT expression
+                 | expression DIVISION expression
+                 | expression MODULUS expression
+                 | expression EXP expression
+                 | expression FLOORDIV expression
+                 | expression COMPARISON expression
+                 | // other binary expression types
+                 ;
+
+// Define lexer rules for tokens
+ASSIGNMENT: '=';
+ADD: '+';
+MULT: '*';
+SUBT: '-';
+DIVISION: '/';
+MODULUS: '%';
+EXP: '**';
+FLOORDIV: '//';
+COMPARISON: '!=' | '>' | '<' | '>=' | '<=' | '==' | '<>';
+SEMICOLON: ';';
+IDENTIFIER: [a-zA-Z_] [a-zA-Z0-9_]*;
+
+INTEGER_LITERAL: [0-9]+;
+
+STRING_LITERAL: '"' (~["\n] | '\\"')* '"' | '\'' (~['\n] | '\\\'')* '\'';
+PUNCTUATION: '[' | ']' | '{' | '}' | '(' | ')' | ',' | ':' | '"';
